@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 Akvorado contributors
+# SPDX-License-Identifier: AGPL-3.0-only
+[Unit]
+Description=Akvorado console settings
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/akvorado-settings.env
+ExecStart=/usr/bin/python3 /opt/akvorado/settings/server.py --socket ${SETTINGS_SOCKET} --origin ${SETTINGS_ORIGIN} --admin ${SETTINGS_ADMIN} --caddy ${SETTINGS_CADDY} --clickhouse ${SETTINGS_CLICKHOUSE} --caddyfile /opt/akvorado/web/Caddyfile --config /opt/akvorado/config/akvorado.yaml
+Restart=on-failure
+RestartSec=3
+ProtectSystem=strict
+ReadWritePaths=/opt/akvorado/web /opt/akvorado/config /var/lib/docker/volumes/akvorado-web_caddy-config/_data
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+RestrictAddressFamilies=AF_UNIX
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

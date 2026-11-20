@@ -6,14 +6,14 @@
     <header>
       <h2 class="font-mono text-xl font-semibold">{{ ip }}</h2>
       <p class="mt-1 text-sm text-gray-600 dark:text-slate-400">
-        {{ formatPeriod(start, end) }} · Stima IPFIX
+        {{ formatPeriod(start, end) }} · Estimated from sampled IPFIX
       </p>
     </header>
     <p
       v-if="!traffic.points.length"
       class="rounded-xl border border-gray-200 p-5 dark:border-slate-700"
     >
-      Nessun flusso nel periodo.
+      No flows in this time range.
     </p>
     <template v-else>
       <dl class="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -34,9 +34,9 @@
       <section
         class="rounded-xl border border-gray-200 p-4 dark:border-slate-700"
       >
-        <h3 class="font-semibold">Velocità nel tempo</h3>
+        <h3 class="font-semibold">Traffic over time</h3>
         <p class="text-xs text-gray-600 dark:text-slate-400">
-          Banda media per minuto
+          One-minute average throughput
         </p>
         <div class="h-80">
           <v-chart
@@ -63,7 +63,7 @@
                   <th scope="col" class="px-2 py-2">{{ group.name }}</th>
                   <th scope="col" class="px-2 py-2 text-right">Download</th>
                   <th scope="col" class="px-2 py-2 text-right">Upload</th>
-                  <th scope="col" class="px-2 py-2 text-right">Totale</th>
+                  <th scope="col" class="px-2 py-2 text-right">Total</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100 dark:divide-slate-800">
@@ -71,12 +71,12 @@
                   <th scope="row" class="px-2 py-2 font-medium">
                     {{
                       row.name ||
-                      (group.name === "AS remoto"
-                        ? "AS sconosciuto"
-                        : "Protocollo " + row.id)
+                      (group.name === "Remote AS"
+                        ? "Unknown AS"
+                        : "Protocol " + row.id)
                     }}
                     <span
-                      v-if="group.name === 'AS remoto' && row.id"
+                      v-if="group.name === 'Remote AS' && row.id"
                       class="block font-mono text-xs text-gray-600 dark:text-slate-400"
                       >AS{{ row.id }}</span
                     >
@@ -114,7 +114,7 @@ export type ClientDetail = {
   protocols: TrafficBreakdown[];
   networks: TrafficBreakdown[];
 };
-const dateFormat = new Intl.DateTimeFormat("it-IT", {
+const dateFormat = new Intl.DateTimeFormat("en-GB", {
   dateStyle: "short",
   timeStyle: "short",
 });
@@ -173,27 +173,31 @@ const stats = computed(() => [
   { label: "Download", value: formatVolume(props.traffic.total.download) },
   { label: "Upload", value: formatVolume(props.traffic.total.upload) },
   {
-    label: "Totale",
+    label: "Total",
     value: formatVolume(
       props.traffic.total.download + props.traffic.total.upload,
     ),
   },
   {
-    label: "Picco download (1 min)",
+    label: "Peak download (1 min)",
     value: formatSpeed(props.traffic.peakDownloadBps),
   },
   {
-    label: "Picco upload (1 min)",
+    label: "Peak upload (1 min)",
     value: formatSpeed(props.traffic.peakUploadBps),
   },
 ]);
 const breakdowns = computed(() => [
   {
-    label: "Traffico per protocollo",
-    name: "Protocollo",
+    label: "Traffic by protocol",
+    name: "Protocol",
     rows: props.traffic.protocols,
   },
-  { label: "Top reti remote", name: "AS remoto", rows: props.traffic.networks },
+  {
+    label: "Top remote networks",
+    name: "Remote AS",
+    rows: props.traffic.networks,
+  },
 ]);
 const chart = computed((): ChartOption => {
   const start = Date.parse(props.start);
@@ -207,6 +211,7 @@ const chart = computed((): ChartOption => {
   );
   return {
     backgroundColor: "transparent",
+    color: isDark.value ? ["#60a5fa", "#f87171"] : ["#2563eb", "#dc2626"],
     legend: { top: 0 },
     grid: { left: 8, right: 20, top: 35, bottom: 64 },
     xAxis: { type: "time" },

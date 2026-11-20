@@ -1,21 +1,8 @@
 <!-- SPDX-FileCopyrightText: 2022 Free Mobile -->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
-<!--
- Default, 4 columns:
- - Dimensions list box (4 columns)
- - IPv4 /x (optional), IPv6 /x (optional), Limit, Top by
- Large (lg:), 2 columns:
- - Dimensions list box (2 columns)
- - IPv4 /x (optional), IPv6 /x (optional)
- - Limit, Top By
--->
-
 <template>
-  <div
-    class="grid grid-cols-4 gap-2 lg:grid-cols-2"
-    @keydown.capture="handleKeydown"
-  >
+  <div class="grid gap-2" @keydown.capture="handleKeydown">
     <InputListBox
       v-model="selectedDimensions"
       :items="dimensions"
@@ -23,7 +10,6 @@
       multiple
       label="Choose fields"
       filter="keywords"
-      class="col-span-full"
     >
       <template #selected>
         <span v-if="selectedDimensions.length === 0">All traffic</span>
@@ -58,39 +44,53 @@
         {{ label }}
       </template>
     </InputListBox>
-    <InputString
-      v-if="canAggregate"
-      v-model="truncate4"
-      class="grow"
-      label="IPv4 prefix"
-      :error="truncate4Error"
-    />
-    <InputString
-      v-if="canAggregate"
-      v-model="truncate6"
-      class="grow"
-      label="IPv6 prefix"
-      :error="truncate6Error"
-    />
-    <InputString
-      v-model="limit"
-      class="grow"
-      label="Top results"
-      :error="limitError"
-    />
-    <InputListBox
-      v-model="limitType"
-      :items="computationModeList"
-      class="grow"
-      label="Rank by"
+    <details
+      class="rounded-md border border-slate-200 px-3 py-2 dark:border-slate-700"
     >
-      <template #selected>{{ limitType.name }}</template>
-      <template #item="{ name }">
-        <div class="flex w-full items-center justify-between">
-          <span>{{ name }}</span>
-        </div>
-      </template>
-    </InputListBox>
+      <summary class="cursor-pointer text-sm font-medium">
+        Ranking and IP prefixes
+        <span
+          v-if="limitError || truncate4Error || truncate6Error"
+          class="ml-1 text-xs text-red-700 dark:text-red-300"
+          >Check fields</span
+        >
+      </summary>
+      <div class="mt-2 grid grid-cols-2 gap-2">
+        <InputString
+          v-if="canAggregate"
+          v-model="truncate4"
+          class="grow"
+          label="IPv4 prefix"
+          :error="truncate4Error"
+        />
+        <InputString
+          v-if="canAggregate"
+          v-model="truncate6"
+          class="grow"
+          label="IPv6 prefix"
+          :error="truncate6Error"
+        />
+        <InputString
+          v-model="limit"
+          class="grow"
+          label="Top results"
+          :error="limitError"
+        />
+        <InputListBox
+          v-model="limitType"
+          :items="computationModeList"
+          class="grow"
+          label="Rank by"
+        >
+          <template #selected>{{ limitType.name }}</template>
+          <template #item="{ name }">
+            <div class="flex w-full items-center justify-between">
+              <span>{{ name }}</span>
+            </div>
+          </template>
+        </InputListBox>
+      </div>
+    </details>
   </div>
 </template>
 

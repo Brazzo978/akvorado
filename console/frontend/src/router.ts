@@ -4,6 +4,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import HomePage from "@/views/HomePage.vue";
 import ClientsPage from "@/views/ClientsPage.vue";
+import SettingsPage from "@/views/SettingsPage.vue";
 import VisualizePage from "@/views/VisualizePage.vue";
 import ErrorPage from "@/views/ErrorPage.vue";
 
@@ -31,7 +32,7 @@ const router = createRouter({
       path: "/clients",
       name: "Clients",
       component: ClientsPage,
-      meta: { title: "Clienti" },
+      meta: { title: "Clients" },
     },
     {
       path: "/visualize",
@@ -45,6 +46,12 @@ const router = createRouter({
       component: VisualizePage,
       meta: { title: "Visualize" },
       props: (route) => ({ routeState: route.params.state }),
+    },
+    {
+      path: "/settings",
+      name: "Settings",
+      component: SettingsPage,
+      meta: { title: "Settings" },
     },
     {
       path: "/:pathMatch(.*)",

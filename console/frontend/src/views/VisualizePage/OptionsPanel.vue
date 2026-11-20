@@ -3,95 +3,46 @@
 
 <template>
   <aside
-    class="max-w-full shrink-0 overflow-y-auto border-b border-gray-200 bg-gray-50 dark:border-slate-700 dark:bg-slate-800 lg:border-r lg:border-b-0"
+    class="flex max-w-full shrink-0 flex-col border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800 lg:border-r lg:border-b-0"
     :class="
-      open ? 'max-h-[55dvh] w-full lg:max-h-none lg:w-80' : 'w-full lg:w-16'
+      open ? 'max-h-[58dvh] w-full lg:max-h-none lg:w-80' : 'w-full lg:w-20'
     "
   >
     <div
-      class="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2 dark:border-slate-700 dark:bg-slate-800"
+      class="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2 dark:border-slate-700"
     >
-      <h2 v-if="open" class="text-base font-semibold">Chart setup</h2>
+      <h2 v-if="open" class="text-base font-semibold">Chart options</h2>
       <button
         type="button"
-        class="rounded px-2 py-1 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:text-blue-300 dark:hover:bg-slate-700"
+        class="cursor-pointer rounded px-2 py-1 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:text-blue-300 dark:hover:bg-slate-700"
         :aria-expanded="open"
         aria-controls="chart-setup"
         @click="open = !open"
       >
-        {{ open ? "Hide" : "Setup" }}
+        {{ open ? "Hide" : "Options" }}
       </button>
     </div>
+
     <form
       v-show="open"
       id="chart-setup"
-      class="grid gap-4 p-4"
+      class="flex min-h-0 flex-col"
       autocomplete="off"
       spellcheck="false"
       @submit.prevent="submitOptions()"
     >
-      <InputButton
-        attr-type="submit"
-        :disabled="hasErrors && !loading"
-        :loading="loading"
-        :type="loading ? 'alternative' : 'primary'"
-        class="w-full justify-center"
-        >{{ loading ? "Cancel" : applyLabel }}</InputButton
+      <div
+        class="grid min-h-0 gap-4 overflow-y-auto px-4 py-3 [scrollbar-gutter:stable]"
       >
-
-      <section class="grid gap-2">
-        <SectionLabel>
-          <template #default>
-            <span class="flex items-center gap-1">
-              Time period
-              <button
-                type="button"
-                title="Zoom out"
-                :disabled="timeRange?.errors"
-                class="cursor-pointer text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-gray-400 dark:hover:text-gray-200 dark:disabled:hover:text-gray-400"
-                @click="timeRangeInput?.zoomOut()"
-              >
-                <ZoomOutIcon class="h-4 w-4" aria-hidden="true" />
-              </button>
-            </span>
-          </template>
-          <template #hint>
-            <label
-              class="flex items-center gap-1"
-              :class="liveRange ? 'cursor-pointer' : 'cursor-not-allowed'"
-              :title="autoRefreshHint"
-            >
-              <span>Auto refresh</span>
-              <select
-                v-model="autoRefresh"
-                :disabled="!liveRange"
-                class="cursor-pointer rounded border border-gray-300 bg-white px-1 py-0.5 text-xs text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-400"
-              >
-                <option
-                  v-for="interval in refreshIntervals"
-                  :key="interval.value"
-                  :value="interval.value"
-                >
-                  {{ interval.label }}
-                </option>
-              </select>
-            </label>
-          </template>
-        </SectionLabel>
         <InputTimeRange
           ref="timeRangeInput"
           v-model="timeRange"
           @submit="submitOptions(true)"
         />
-      </section>
 
-      <section class="grid gap-2">
-        <label class="grid gap-1.5 text-sm font-semibold">
-          Measure
-          <select
-            v-model="units"
-            class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-normal dark:border-slate-600 dark:bg-slate-900"
-          >
+        <label class="grid gap-1 text-sm font-semibold">
+          Metric
+          <select v-model="units" :class="selectClass">
             <option value="l3bps">IP traffic (bits/s)</option>
             <option value="l2bps">Ethernet traffic (bits/s)</option>
             <option value="inl2%">Inbound link utilization (%)</option>
@@ -100,99 +51,150 @@
             <option value="fps">Flows per second</option>
           </select>
         </label>
-        <InputCheckbox
-          v-if="bidirectionalGraphTypes.includes(graphType.type)"
-          v-model="bidirectional"
-          label="Show both directions"
-        />
-      </section>
 
-      <section class="grid gap-2">
-        <SectionLabel>
-          <span class="flex items-center gap-1">
-            Group traffic by
+        <section class="grid gap-1">
+          <div class="flex flex-wrap items-center justify-between gap-1">
+            <h3 class="text-sm font-semibold">Group by</h3>
             <button
               type="button"
-              title="Reverse direction"
-              :disabled="!!dimensions?.errors"
-              class="cursor-pointer text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-gray-400 dark:hover:text-gray-200 dark:disabled:hover:text-gray-400"
+              :disabled="!dimensions?.selected.length || !!dimensions.errors"
+              class="cursor-pointer rounded px-1 text-xs font-medium text-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-300"
               @click="reverseDimensions()"
             >
-              <SwitchHorizontalIcon class="h-4 w-4" aria-hidden="true" />
+              Swap directions
             </button>
-          </span>
-        </SectionLabel>
-        <InputDimensions
-          v-model="dimensions"
-          :min-dimensions="graphType.name === graphTypes.sankey ? 2 : 0"
-          @submit="submitOptions()"
-        />
-      </section>
-
-      <details
-        class="rounded-md border border-gray-200 px-3 py-2 dark:border-slate-700"
-      >
-        <summary class="cursor-pointer text-sm font-semibold">
-          Advanced options
-          <span
-            v-if="filter?.errors"
-            class="ml-1 text-xs font-normal text-red-700 dark:text-red-400"
-            >Filter error</span
-          >
-          <span
-            v-else-if="filter?.expression.trim()"
-            class="ml-1 text-xs font-normal text-gray-600 dark:text-gray-400"
-            >Filter active</span
-          >
-        </summary>
-        <div class="mt-3 grid gap-3">
-          <InputListBox
-            v-model="graphType"
-            :items="graphTypeList"
-            label="Graph type"
-          >
-            <template #selected>{{ graphType.name }}</template>
-            <template #item="{ name }">
-              <div class="flex w-full items-center justify-between">
-                <span>{{ name }}</span>
-                <GraphIcon
-                  :name="name"
-                  class="mr-1 inline h-4 text-gray-500 dark:text-gray-400"
-                />
-              </div>
-            </template>
-          </InputListBox>
-          <InputCheckbox
-            v-if="previousPeriodGraphTypes.includes(graphType.type)"
-            v-model="previousPeriod"
-            label="Compare with previous period"
+          </div>
+          <InputDimensions
+            v-model="dimensions"
+            :min-dimensions="graphType.type === 'sankey' ? 2 : 0"
+            @submit="submitOptions()"
           />
-          <SectionLabel>
-            <template #default>
-              <span class="flex items-center gap-1">
-                Filter
-                <button
-                  type="button"
-                  title="Reverse direction"
-                  :disabled="!!filter?.errors"
-                  class="cursor-pointer text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-gray-400 dark:hover:text-gray-200 dark:disabled:hover:text-gray-400"
-                  @click="reverseFilter()"
-                >
-                  <SwitchHorizontalIcon class="h-4 w-4" aria-hidden="true" />
-                </button>
-              </span>
-            </template>
-            <template #hint>
-              <kbd
-                class="rounded border border-gray-300 bg-gray-200 px-1 dark:border-gray-600 dark:bg-gray-900"
-                >Ctrl-Enter</kbd
+        </section>
+
+        <section class="grid gap-2">
+          <label class="grid gap-1 text-sm font-semibold">
+            Chart type
+            <select v-model="graphType" :class="selectClass">
+              <option
+                v-for="choice in graphTypeList"
+                :key="choice.id"
+                :value="choice"
               >
-              to execute
-            </template>
-          </SectionLabel>
-          <InputFilter v-model="filter" @submit="submitOptions()" />
+                {{ choice.name }}
+              </option>
+            </select>
+          </label>
+          <InputCheckbox
+            v-if="bidirectionalGraphTypes.includes(graphType.type)"
+            v-model="bidirectional"
+            label="Show both traffic directions"
+          />
+        </section>
+
+        <div class="grid gap-2">
+          <details
+            class="rounded-md border border-slate-200 px-3 py-2 dark:border-slate-700"
+          >
+            <summary class="cursor-pointer text-sm font-medium">
+              Filters
+              <span
+                class="ml-1 text-xs font-normal"
+                :class="
+                  filter?.errors
+                    ? 'text-red-700 dark:text-red-300'
+                    : 'text-slate-600 dark:text-slate-400'
+                "
+                >{{ filterSummary }}</span
+              >
+            </summary>
+            <div class="mt-3 grid gap-2">
+              <div class="flex flex-wrap gap-1">
+                <button
+                  v-for="preset in filterPresets"
+                  :key="preset.expression"
+                  type="button"
+                  :aria-pressed="
+                    filter?.expression.trim() === preset.expression
+                  "
+                  class="cursor-pointer rounded border border-slate-300 px-2 py-1 text-xs aria-pressed:border-blue-500 aria-pressed:bg-blue-100 dark:border-slate-600 dark:aria-pressed:bg-blue-950"
+                  @click="filter = { expression: preset.expression }"
+                >
+                  {{ preset.label }}
+                </button>
+              </div>
+              <InputFilter v-model="filter" @submit="submitOptions()" />
+              <button
+                type="button"
+                :disabled="!filter?.expression.trim() || !!filter.errors"
+                class="justify-self-start rounded px-1 text-xs font-medium text-blue-700 enabled:cursor-pointer disabled:opacity-50 dark:text-blue-300"
+                @click="reverseFilter()"
+              >
+                Swap filter directions
+              </button>
+            </div>
+          </details>
+
+          <details
+            class="rounded-md border border-slate-200 px-3 py-2 dark:border-slate-700"
+          >
+            <summary class="cursor-pointer text-sm font-medium">
+              Time tools
+              <span
+                v-if="autoRefresh"
+                class="ml-1 text-xs text-slate-600 dark:text-slate-400"
+                >Auto refresh on</span
+              >
+            </summary>
+            <div class="mt-2 grid gap-2">
+              <label
+                class="grid gap-1 text-sm font-medium"
+                :title="autoRefreshHint"
+              >
+                Auto refresh
+                <select
+                  v-model="autoRefresh"
+                  :disabled="!liveRange"
+                  :class="selectClass"
+                >
+                  <option
+                    v-for="interval in refreshIntervals"
+                    :key="interval.value"
+                    :value="interval.value"
+                  >
+                    {{ interval.label }}
+                  </option>
+                </select>
+              </label>
+              <InputCheckbox
+                v-if="previousPeriodGraphTypes.includes(graphType.type)"
+                v-model="previousPeriod"
+                label="Compare with previous period"
+              />
+              <button
+                type="button"
+                :disabled="!timeRange || timeRange.errors"
+                class="justify-self-start rounded px-1 text-xs font-medium text-blue-700 enabled:cursor-pointer disabled:opacity-50 dark:text-blue-300"
+                @click="timeRangeInput?.zoomOut()"
+              >
+                Widen time range
+              </button>
+            </div>
+          </details>
         </div>
-      </details>
+      </div>
+
+      <div
+        class="shrink-0 border-t border-slate-200 px-4 py-3 dark:border-slate-700"
+      >
+        <InputButton
+          attr-type="submit"
+          :disabled="hasErrors && !loading"
+          :loading="loading"
+          :type="loading ? 'alternative' : 'primary'"
+          class="w-full justify-center"
+          >{{ loading ? "Cancel query" : applyLabel }}</InputButton
+        >
+      </div>
     </form>
   </aside>
 </template>
@@ -201,7 +203,6 @@
 import { ref, watch, computed, inject, toRaw } from "vue";
 import { useIntervalFn } from "@vueuse/core";
 import { Date as SugarDate } from "sugar-date";
-import { SwitchHorizontalIcon, ZoomOutIcon } from "@heroicons/vue/solid";
 import {
   default as InputTimeRange,
   type ModelType as InputTimeRangeModelType,
@@ -210,7 +211,6 @@ import {
   default as InputDimensions,
   type ModelType as InputDimensionsModelType,
 } from "@/components/InputDimensions.vue";
-import InputListBox from "@/components/InputListBox.vue";
 import InputButton from "@/components/InputButton.vue";
 import InputCheckbox from "@/components/InputCheckbox.vue";
 import {
@@ -218,8 +218,6 @@ import {
   type ModelType as InputFilterModelType,
 } from "@/components/InputFilter.vue";
 import { ServerConfigKey } from "@/components/ServerConfigProvider.vue";
-import SectionLabel from "./SectionLabel.vue";
-import GraphIcon from "./GraphIcon.vue";
 import type { Units } from ".";
 import { isEqual, omit } from "lodash-es";
 
@@ -253,12 +251,29 @@ const bidirectionalGraphTypes: (keyof typeof graphTypes)[] = [
 
 const previousPeriodGraphTypes: (keyof typeof graphTypes)[] = ["stacked"];
 
+const selectClass =
+  "w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm font-normal disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900";
+
+const filterPresets = [
+  { label: "All traffic", expression: "" },
+  { label: "External ingress", expression: "InIfBoundary = external" },
+  { label: "External egress", expression: "OutIfBoundary = external" },
+];
+
 const open = ref(true);
 const graphType = ref(graphTypeList[0]);
 const timeRange = ref<InputTimeRangeModelType>(null);
 const timeRangeInput = ref<InstanceType<typeof InputTimeRange>>();
 const dimensions = ref<InputDimensionsModelType>(null);
 const filter = ref<InputFilterModelType>(null);
+const filterSummary = computed(() => {
+  if (filter.value?.errors) return "Check filter";
+  const expression = filter.value?.expression.trim() ?? "";
+  return (
+    filterPresets.find((preset) => preset.expression === expression)?.label ??
+    "Custom filter"
+  );
+});
 const units = ref<Units>("l3bps");
 const bidirectional = ref(false);
 const previousPeriod = ref(false);
@@ -364,8 +379,8 @@ const options = computed((): InternalModelType => {
 });
 const applyLabel = computed(() =>
   isEqual(options.value, omit(props.modelValue, ["start", "end"]))
-    ? "Refresh"
-    : "Apply",
+    ? "Refresh chart"
+    : "Run query",
 );
 const hasErrors = computed(
   () =>

@@ -5,16 +5,16 @@
   <div class="container mx-auto w-full space-y-5 px-4 py-6 sm:px-6">
     <header class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight">Clienti</h1>
+        <h1 class="text-2xl font-semibold tracking-tight">Clients</h1>
         <p class="mt-1 text-sm text-gray-600 dark:text-slate-400">
-          Traffico Internet per IP lato LAN
+          Internet traffic by client IP
         </p>
       </div>
       <InputButton v-if="!selected" type="alternative" @click="openWizard()"
-        >Gestisci subnet</InputButton
+        >Manage subnets</InputButton
       >
       <InputButton v-else type="alternative" @click="closeDetail"
-        >Torna alla classifica</InputButton
+        >Back to rankings</InputButton
       >
     </header>
 
@@ -24,14 +24,14 @@
     >
       <form class="space-y-4" @submit.prevent="saveSubnets">
         <div>
-          <h2 class="text-lg font-semibold">Aggiungi le tue subnet</h2>
+          <h2 class="text-lg font-semibold">Add your subnets</h2>
           <p class="mt-1 text-sm text-gray-600 dark:text-slate-400">
-            Inserisci un CIDR per riga. Puoi lasciare il campo vuoto per vedere
-            tutti gli IP lato LAN osservati.
+            Enter one CIDR per line. Leave the list empty to show all observed
+            client IPs.
           </p>
         </div>
         <label class="block text-sm font-medium">
-          Subnet in formato CIDR
+          Subnets in CIDR notation
           <textarea
             v-model="draft"
             rows="4"
@@ -49,14 +49,14 @@
         </p>
         <div class="flex flex-wrap justify-end gap-2">
           <InputButton type="alternative" class="px-4" @click="wizard?.close()"
-            >Chiudi</InputButton
+            >Close</InputButton
           >
           <InputButton
             attr-type="submit"
             :loading="saving"
             :disabled="saving"
             class="px-4"
-            >Salva subnet</InputButton
+            >Save subnets</InputButton
           >
         </div>
       </form>
@@ -68,34 +68,34 @@
         @submit.prevent="refresh"
       >
         <label class="grid gap-1 text-sm font-medium">
-          Periodo
+          Time range
           <select
             v-model.number="hours"
             class="rounded-md border border-gray-300 bg-white px-3 py-2 font-normal dark:border-slate-600 dark:bg-slate-800"
           >
-            <option :value="0.25">Ultimi 15 minuti</option>
-            <option :value="1">Ultima ora</option>
-            <option :value="6">Ultime 6 ore</option>
-            <option :value="24">Ultime 24 ore</option>
+            <option :value="0.25">Last 15 minutes</option>
+            <option :value="1">Last hour</option>
+            <option :value="6">Last 6 hours</option>
+            <option :value="24">Last 24 hours</option>
           </select>
         </label>
         <label class="grid gap-1 text-sm font-medium">
-          Ordina per
+          Sort by
           <select
             v-model="sort"
             class="rounded-md border border-gray-300 bg-white px-3 py-2 font-normal dark:border-slate-600 dark:bg-slate-800"
           >
-            <option value="total">Traffico totale</option>
+            <option value="total">Total traffic</option>
             <option value="download">Download</option>
             <option value="upload">Upload</option>
           </select>
         </label>
         <label class="grid grow gap-1 text-sm font-medium sm:grow-0">
-          Cerca IP
+          Find IP
           <input
             v-model.trim="search"
             spellcheck="false"
-            placeholder="Indirizzo IP"
+            placeholder="IP address"
             class="rounded-md border border-gray-300 bg-transparent px-3 py-2 font-normal dark:border-slate-600"
           />
         </label>
@@ -104,12 +104,12 @@
           :loading="loading"
           :disabled="loading"
           class="px-4"
-          >Aggiorna</InputButton
+          >Refresh</InputButton
         >
         <div
           class="flex w-full flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-slate-400"
         >
-          <span v-if="!prefixes.length">Tutti gli IP lato LAN osservati</span>
+          <span v-if="!prefixes.length">All observed client IPs</span>
           <span
             v-for="prefix in prefixes"
             :key="prefix"
@@ -126,10 +126,10 @@
         <div
           class="flex flex-wrap items-center justify-between gap-2 px-4 py-3"
         >
-          <h2 class="font-semibold">Classifica IP</h2>
+          <h2 class="font-semibold">IP rankings</h2>
           <p v-if="active" class="text-xs text-gray-600 dark:text-slate-400">
-            {{ formatPeriod(active.start, active.end) }} · Volumi stimati da
-            IPFIX
+            {{ formatPeriod(active.start, active.end) }} · Estimated from
+            sampled IPFIX
           </p>
         </div>
         <div class="overflow-x-auto" :aria-busy="loading">
@@ -138,11 +138,21 @@
               class="border-y border-gray-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800"
             >
               <tr>
-                <th scope="col" class="px-4 py-2">Pos.</th>
+                <th scope="col" class="px-4 py-2">Rank</th>
                 <th scope="col" class="px-4 py-2">Client IP</th>
-                <th scope="col" class="px-4 py-2 text-right">Download</th>
-                <th scope="col" class="px-4 py-2 text-right">Upload</th>
-                <th scope="col" class="px-4 py-2 text-right">Totale</th>
+                <th
+                  scope="col"
+                  class="w-1/2 min-w-44 px-4 py-2"
+                  title="Same scale for download and upload on this page"
+                >
+                  <div class="flex justify-between gap-3">
+                    <span class="text-blue-700 dark:text-blue-300"
+                      >Download</span
+                    >
+                    <span class="text-red-700 dark:text-red-300">Upload</span>
+                  </div>
+                </th>
+                <th scope="col" class="px-4 py-2 text-right">Total</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-slate-800">
@@ -163,11 +173,39 @@
                     {{ row.ip }}
                   </button>
                 </th>
-                <td class="px-4 py-2.5 text-right">
-                  {{ formatVolume(row.download) }}
-                </td>
-                <td class="px-4 py-2.5 text-right">
-                  {{ formatVolume(row.upload) }}
+                <td class="px-4 py-2">
+                  <div
+                    class="mb-1 flex justify-between gap-3 whitespace-nowrap text-xs"
+                  >
+                    <span
+                      ><span class="sr-only">Download </span
+                      >{{ formatVolume(row.download) }}</span
+                    >
+                    <span
+                      ><span class="sr-only">Upload </span
+                      >{{ formatVolume(row.upload) }}</span
+                    >
+                  </div>
+                  <div
+                    aria-hidden="true"
+                    class="relative grid h-2.5 grid-cols-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700"
+                  >
+                    <div class="flex justify-end">
+                      <div
+                        class="rounded-l-full bg-blue-600 dark:bg-blue-400"
+                        :style="{ width: barWidth(row.download) }"
+                      />
+                    </div>
+                    <div class="flex">
+                      <div
+                        class="rounded-r-full bg-red-600 dark:bg-red-400"
+                        :style="{ width: barWidth(row.upload) }"
+                      />
+                    </div>
+                    <div
+                      class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-slate-500 dark:bg-slate-300"
+                    />
+                  </div>
                 </td>
                 <td class="px-4 py-2.5 text-right font-semibold">
                   {{ formatVolume(row.download + row.upload) }}
@@ -175,13 +213,13 @@
               </tr>
               <tr v-if="!rows.length">
                 <td
-                  colspan="5"
+                  colspan="4"
                   class="px-4 py-8 text-center text-gray-600 dark:text-slate-400"
                 >
                   {{
                     loading
-                      ? "Caricamento…"
-                      : "Nessun IP con traffico per i filtri selezionati."
+                      ? "Loading…"
+                      : "No client traffic matches these filters."
                   }}
                 </td>
               </tr>
@@ -196,13 +234,13 @@
             type="alternative"
             :disabled="loading || !offset"
             @click="loadPage(offset - 25)"
-            >Indietro</InputButton
+            >Previous</InputButton
           >
           <InputButton
             type="alternative"
             :disabled="loading || !hasMore"
             @click="loadPage(offset + 25)"
-            >Avanti</InputButton
+            >Next</InputButton
           >
         </footer>
       </section>
@@ -211,7 +249,7 @@
     <section v-else aria-live="polite">
       <InfoBox v-if="detailError">{{ detailError }}</InfoBox>
       <p v-else-if="!detail" class="py-4 text-sm" role="status">
-        Caricamento del traffico di {{ selected }}…
+        Loading traffic for {{ selected }}…
       </p>
       <ClientTrafficDetail
         v-else-if="active"
@@ -225,7 +263,7 @@
 </template>
 
 <script lang="ts" setup>
-import { inject, nextTick, onUnmounted, ref, watch } from "vue";
+import { computed, inject, nextTick, onUnmounted, ref, watch } from "vue";
 import InputButton from "@/components/InputButton.vue";
 import InfoBox from "@/components/InfoBox.vue";
 import { ServerConfigKey } from "@/components/ServerConfigProvider.vue";
@@ -259,6 +297,14 @@ const sort = ref<Ranking>("total");
 const search = ref("");
 const active = ref<TrafficRequest>();
 const rows = ref<ClientRow[]>([]);
+const largestDirection = computed(() =>
+  Math.max(
+    1,
+    ...rows.value.flatMap(({ download, upload }) => [download, upload]),
+  ),
+);
+const barWidth = (bytes: number) =>
+  (bytes / largestDirection.value) * 100 + "%";
 const loading = ref(false);
 const listError = ref("");
 const offset = ref(0);
@@ -280,9 +326,9 @@ async function post<T>(
     body: JSON.stringify(body),
     signal,
   });
-  if (response.status === 400) throw new Error((await response.json()).message);
-  if (!response.ok)
-    throw new Error("Impossibile caricare i dati sul traffico.");
+  if (response.status === 400)
+    throw new Error("Check the IP address and use CIDR notation for subnets.");
+  if (!response.ok) throw new Error("Unable to load client traffic.");
   return response.json();
 }
 
@@ -336,7 +382,7 @@ function openWizard() {
 async function saveSubnets() {
   const next = [...new Set(draft.value.split(/[\s,]+/).filter(Boolean))];
   if (next.length > 16 || next.some((prefix) => !prefix.includes("/"))) {
-    wizardError.value = "Inserisci fino a 16 subnet in formato CIDR.";
+    wizardError.value = "Enter up to 16 subnets in CIDR notation.";
     return;
   }
   const previous = prefixes.value;

@@ -18,7 +18,7 @@
           <router-link
             :to="item.link"
             :aria-current="item.current ? 'page' : undefined"
-            class="block rounded-t-md border-b-2 px-3 py-2.5 text-sm font-medium"
+            class="block rounded-t-md border-b-2 px-2 py-2.5 text-sm font-medium sm:px-3"
             :class="
               item.current
                 ? 'border-blue-600 bg-blue-50 text-blue-800 dark:border-blue-400 dark:bg-slate-800 dark:text-blue-300'
@@ -46,11 +46,12 @@ import UserMenu from "@/components/UserMenu.vue";
 const route = useRoute();
 const navigation = computed(() => [
   { name: "Home", link: "/", current: route.path === "/" },
-  { name: "Clienti", link: "/clients", current: route.path === "/clients" },
   {
     name: "Visualize",
     link: "/visualize",
     current: route.path.startsWith("/visualize"),
   },
+  { name: "Clients", link: "/clients", current: route.path === "/clients" },
+  { name: "Settings", link: "/settings", current: route.path === "/settings" },
 ]);
 </script>

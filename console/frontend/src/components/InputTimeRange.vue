@@ -1,61 +1,58 @@
 <!-- SPDX-FileCopyrightText: 2022 Free Mobile -->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
-<!--
- Default, 2 columns:
- - Presets (2 columns)
- - Start, End
- Medium (md:), 3 columns:
- - Presets, Start, End
- Large (lg:), 1 column
--->
-
 <template>
-  <div class="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-1">
-    <InputListBox
-      v-model="selectedPreset"
-      :items="presets"
-      filter="name"
-      label="Presets"
-      class="col-span-full md:col-span-1"
+  <div class="grid gap-2">
+    <label class="grid gap-1 text-sm font-semibold">
+      Time range
+      <select
+        v-model="selectedPreset"
+        class="w-full rounded-md border border-slate-300 bg-white px-2 py-2 font-normal dark:border-slate-600 dark:bg-slate-900"
+      >
+        <option v-for="preset in presets" :key="preset.id" :value="preset">
+          {{ preset.name }}
+        </option>
+      </select>
+    </label>
+    <div
+      v-show="selectedPreset.id === presets[0].id || hasErrors"
+      class="grid gap-2"
     >
-      <template #selected>{{ selectedPreset.name }}</template>
-      <template #item="{ name }">{{ name }}</template>
-    </InputListBox>
-    <InputString
-      v-model="startTime"
-      :label="`Start${timezoneHint}`"
-      :error="startTimeError"
-    >
-      <template #button>
-        <button
-          type="button"
-          title="Move the time range backward"
-          :disabled="hasErrors"
-          :class="shiftButtonClass"
-          @click="shiftTimeRange(-1)"
-        >
-          <ChevronLeftIcon class="h-5 w-5" aria-hidden="true" />
-        </button>
-      </template>
-    </InputString>
-    <InputString
-      v-model="endTime"
-      :label="`End${timezoneHint}`"
-      :error="endTimeError"
-    >
-      <template #button>
-        <button
-          type="button"
-          title="Move the time range forward"
-          :disabled="hasErrors"
-          :class="shiftButtonClass"
-          @click="shiftTimeRange(1)"
-        >
-          <ChevronRightIcon class="h-5 w-5" aria-hidden="true" />
-        </button>
-      </template>
-    </InputString>
+      <InputString
+        v-model="startTime"
+        :label="`Start${timezoneHint}`"
+        :error="startTimeError"
+      >
+        <template #button>
+          <button
+            type="button"
+            title="Move the time range backward"
+            :disabled="hasErrors"
+            :class="shiftButtonClass"
+            @click="shiftTimeRange(-1)"
+          >
+            <ChevronLeftIcon class="h-5 w-5" aria-hidden="true" />
+          </button>
+        </template>
+      </InputString>
+      <InputString
+        v-model="endTime"
+        :label="`End${timezoneHint}`"
+        :error="endTimeError"
+      >
+        <template #button>
+          <button
+            type="button"
+            title="Move the time range forward"
+            :disabled="hasErrors"
+            :class="shiftButtonClass"
+            @click="shiftTimeRange(1)"
+          >
+            <ChevronRightIcon class="h-5 w-5" aria-hidden="true" />
+          </button>
+        </template>
+      </InputString>
+    </div>
   </div>
 </template>
 
@@ -64,7 +61,6 @@ import { ref, computed, watch, nextTick } from "vue";
 import { Date as SugarDate } from "sugar-date";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/vue/solid";
 import InputString from "@/components/InputString.vue";
-import InputListBox from "@/components/InputListBox.vue";
 import { isEqual } from "lodash-es";
 import { selectedTimezone } from "@/utils/timezone";
 
@@ -101,8 +97,8 @@ const endTimeError = computed(
   () =>
     (isNaN(parsedTimes.value.end.valueOf()) ? "Invalid date" : "") ||
     (!isNaN(parsedTimes.value.start.valueOf()) &&
-      parsedTimes.value.start > parsedTimes.value.end &&
-      "End date should be before start date") ||
+      parsedTimes.value.start >= parsedTimes.value.end &&
+      "End must be after start") ||
     "",
 );
 const hasErrors = computed(
@@ -143,7 +139,7 @@ const zoomOutTimeRange = () => {
 defineExpose({ zoomOut: zoomOutTimeRange });
 
 const presets = [
-  { name: "Custom" },
+  { name: "Custom dates" },
   { name: "Last hour", start: "1 hour ago", end: "now" },
   { name: "Last 6 hours", start: "6 hours ago", end: "now" },
   { name: "Last 12 hours", start: "12 hours ago", end: "now" },
