@@ -105,6 +105,8 @@ func (c *Component) Start() error {
 	// Dynamic assets
 	endpoint := c.d.HTTP.APIRouter.Group("/api/v0/console", c.d.Auth.UserAuthentication())
 	endpoint.GET("/configuration", c.configHandlerFunc)
+	endpoint.POST("/clients/traffic", c.clientTrafficHandlerFunc, c.d.HTTP.CacheByRequestBody(time.Minute))
+	endpoint.POST("/clients/detail", c.clientDetailHandlerFunc, c.d.HTTP.CacheByRequestBody(time.Minute))
 	endpoint.GET("/docs/{name}", c.docsHandlerFunc)
 	endpoint.GET("/widget/flow-last", c.widgetFlowLastHandlerFunc, c.d.HTTP.CacheByRequestPath(5*time.Second))
 	endpoint.GET("/widget/flow-rate", c.widgetFlowRateHandlerFunc, c.d.HTTP.CacheByRequestPath(5*time.Second))

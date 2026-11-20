@@ -3,6 +3,7 @@
 
 import { createRouter, createWebHistory } from "vue-router";
 import HomePage from "@/views/HomePage.vue";
+import ClientsPage from "@/views/ClientsPage.vue";
 import VisualizePage from "@/views/VisualizePage.vue";
 import ErrorPage from "@/views/ErrorPage.vue";
 
@@ -25,6 +26,12 @@ const router = createRouter({
       name: "Home",
       component: HomePage,
       meta: { title: "Home" },
+    },
+    {
+      path: "/clients",
+      name: "Clients",
+      component: ClientsPage,
+      meta: { title: "Clienti" },
     },
     {
       path: "/visualize",

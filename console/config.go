@@ -38,6 +38,8 @@ type Configuration struct {
 	DimensionsLimit int `validate:"min=10"`
 	// Branding enables some branding on the console
 	Branding bool
+	// ClientSubnets lists the default CIDRs for the Clients view, separated by commas.
+	ClientSubnets string
 	// CacheTTL tells how long to keep the most costly requests in cache.
 	CacheTTL time.Duration `validate:"min=5s"`
 }
@@ -143,7 +145,7 @@ func (c *Component) configHandlerFunc(w http.ResponseWriter, _ *http.Request) {
 			truncatable = append(truncatable, column.Name)
 		}
 	}
-	httpserver.WriteJSON(w, http.StatusOK, helpers.M{
+	payload := helpers.M{
 		"version":                 helpers.AkvoradoVersion,
 		"defaultVisualizeOptions": c.config.DefaultVisualizeOptions,
 		"dimensionsLimit":         c.config.DimensionsLimit,
@@ -151,5 +153,9 @@ func (c *Component) configHandlerFunc(w http.ResponseWriter, _ *http.Request) {
 		"truncatable":             truncatable,
 		"homepageTopWidgets":      c.config.HomepageTopWidgets,
 		"branding":                c.config.Branding,
-	})
+	}
+	if c.config.ClientSubnets != "" {
+		payload["clientSubnets"] = strings.FieldsFunc(c.config.ClientSubnets, func(r rune) bool { return r == ',' || r == ' ' })
+	}
+	httpserver.WriteJSON(w, http.StatusOK, payload)
 }

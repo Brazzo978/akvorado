@@ -38,6 +38,7 @@ type ServerConfig = {
   truncatable: string[];
   homepageTopWidgets: string[];
   branding: boolean;
+  clientSubnets?: string[] | null;
 };
 
 export const ServerConfigKey: InjectionKey<Readonly<Ref<ServerConfig | null>>> =
