@@ -21,12 +21,12 @@
       :items="dimensions"
       :error="dimensionsError"
       multiple
-      label="Dimensions"
-      filter="name"
+      label="Choose fields"
+      filter="keywords"
       class="col-span-full"
     >
       <template #selected>
-        <span v-if="selectedDimensions.length === 0">No dimensions</span>
+        <span v-if="selectedDimensions.length === 0">All traffic</span>
         <draggable
           v-model="selectedDimensions"
           class="block flex flex-wrap gap-1"
@@ -38,52 +38,51 @@
               class="flex cursor-grab items-center gap-1 rounded border-2 bg-violet-100 px-1.5 dark:bg-slate-800 dark:text-gray-200"
               :style="{ borderColor: dimension.color }"
             >
-              <span class="leading-4">{{ dimension.name }}</span>
-              <XIcon
-                class="h-4 w-4 cursor-pointer hover:text-blue-700 dark:hover:text-white"
-                @click.stop.prevent="removeDimension(dimension)"
-              />
+              <span class="leading-4">{{ dimension.label }}</span>
+              <button
+                type="button"
+                class="cursor-pointer rounded hover:text-blue-700 dark:hover:text-white"
+                :aria-label="'Remove ' + dimension.label"
+                @click.stop="removeDimension(dimension)"
+              >
+                <XIcon class="h-4 w-4" aria-hidden="true" />
+              </button>
             </span>
           </template>
         </draggable>
-        <span
-          class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2"
-        >
-          <SelectorIcon class="h-5 w-5 text-gray-400" aria-hidden="true" />
-        </span>
       </template>
-      <template #item="{ name, color }">
+      <template #item="{ label, color }">
         <span :style="{ backgroundColor: color }" class="inline w-1 rounded"
           >&nbsp;</span
         >
-        {{ name }}
+        {{ label }}
       </template>
     </InputListBox>
     <InputString
       v-if="canAggregate"
       v-model="truncate4"
       class="grow"
-      label="IPv4 /x"
+      label="IPv4 prefix"
       :error="truncate4Error"
     />
     <InputString
       v-if="canAggregate"
       v-model="truncate6"
       class="grow"
-      label="IPv6 /x"
+      label="IPv6 prefix"
       :error="truncate6Error"
     />
     <InputString
       v-model="limit"
       class="grow"
-      label="Limit"
+      label="Top results"
       :error="limitError"
     />
     <InputListBox
       v-model="limitType"
       :items="computationModeList"
       class="grow"
-      label="Top by"
+      label="Rank by"
     >
       <template #selected>{{ limitType.name }}</template>
       <template #item="{ name }">
@@ -98,7 +97,7 @@
 <script lang="ts" setup>
 import { ref, watch, computed, inject } from "vue";
 import draggable from "vuedraggable";
-import { XIcon, SelectorIcon } from "@heroicons/vue/solid";
+import { XIcon } from "@heroicons/vue/solid";
 import { dataColor } from "@/utils";
 import InputString from "@/components/InputString.vue";
 import InputListBox from "@/components/InputListBox.vue";
@@ -144,9 +143,9 @@ const limitError = computed(() => {
 });
 
 const computationModes = {
-  avg: "Avg",
-  max: "Max",
-  last: "Last",
+  avg: "Average",
+  max: "Peak",
+  last: "Latest",
 } as const;
 
 const computationModeList = Object.entries(computationModes).map(
@@ -189,17 +188,46 @@ const hasErrors = computed(
     !!truncate6Error.value,
 );
 
-const dimensions = computed(
-  () =>
-    serverConfiguration.value?.dimensions.map((v, idx) => ({
+const directionLabels: Record<string, string> = {
+  Src: "Source",
+  Dst: "Destination",
+  InIf: "Ingress",
+  OutIf: "Egress",
+};
+const fieldLabels: Record<string, string> = {
+  Addr: "IP address",
+  AS: "network (AS)",
+  NetPrefix: "network prefix",
+  Name: "interface name",
+  Description: "interface description",
+  Speed: "interface speed",
+  Provider: "interface provider",
+  Connectivity: "interface connectivity",
+  Boundary: "interface boundary",
+  EType: "IP version",
+  Proto: "protocol",
+};
+const dimensions = computed(() =>
+  (serverConfiguration.value?.dimensions ?? []).map((name, idx) => {
+    const prefix = /^(Src|Dst|InIf|OutIf)/.exec(name)?.[0] ?? "";
+    const field = name.slice(prefix.length);
+    const fieldLabel =
+      fieldLabels[field] ?? field.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+    const label = prefix
+      ? directionLabels[prefix] + " " + fieldLabel
+      : fieldLabel;
+    return {
       id: idx + 1,
-      name: v,
+      name,
+      label,
+      keywords: name + " " + label,
       color: dataColor(
-        ["Exporter", "Src", "Dst", "In", "Out", ""]
-          .map((p) => v.startsWith(p))
-          .indexOf(true),
+        ["Exporter", "Src", "Dst", "In", "Out", ""].findIndex((p) =>
+          name.startsWith(p),
+        ),
       ),
-    })) || [],
+    };
+  }),
 );
 
 const removeDimension = (dimension: (typeof dimensions.value)[0]) => {

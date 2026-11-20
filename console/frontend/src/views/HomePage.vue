@@ -2,47 +2,45 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 <template>
-  <div class="container mx-auto">
-    <div class="grid grid-cols-1 gap-4 p-5 text-center xl:grid-cols-3">
-      <div
-        class="grid auto-rows-min grid-cols-2 gap-4 md:grid-cols-4 xl:col-span-2"
-      >
-        <div class="col-span-2 flex flex-row">
-          <div class="my-auto mr-4 basis-1/3">
-            <div class="h-24 w-24">
-              <img src="@/assets/images/akvorado.svg" />
-            </div>
-          </div>
-          <div class="grow">
-            <p class="leading-relaxed">
-              <strong>Akvorado</strong> is a flow collector, enricher and
-              exporter. It receives flows, adds some data like interface names
-              and countries, and exports them to ClickHouse.
-            </p>
-          </div>
-        </div>
+  <div class="container mx-auto space-y-5 px-4 py-6 sm:px-6">
+    <header class="flex flex-wrap items-center justify-between gap-4">
+      <h1 class="text-2xl font-semibold tracking-tight">Traffic overview</h1>
+      <div class="grid w-full grid-cols-2 gap-3 sm:w-auto">
         <WidgetFlowRate
           :refresh="refreshOften"
-          class="rounded-md p-4 shadow dark:shadow-white/10"
+          class="rounded-xl border border-gray-200 px-4 py-2 text-center dark:border-slate-700"
         />
         <WidgetExporters
           :refresh="refreshOccasionally"
-          class="rounded-md p-4 shadow dark:shadow-white/10"
-        />
-        <WidgetTop
-          v-for="widget in topWidgets"
-          :key="widget"
-          :what="widget"
-          :title="widgetTitle(widget)"
-          :refresh="refreshOccasionally"
-        />
-        <WidgetGraph
-          :refresh="refreshInfrequently"
-          class="col-span-2 md:col-span-3"
+          class="rounded-xl border border-gray-200 px-4 py-2 text-center dark:border-slate-700"
         />
       </div>
-      <WidgetLastFlow :refresh="refreshOften" />
+    </header>
+
+    <section
+      class="min-w-0 rounded-xl border border-gray-200 p-4 dark:border-slate-700 sm:p-6"
+    >
+      <h2 class="text-lg font-semibold">Traffic over time</h2>
+      <WidgetGraph :refresh="refreshInfrequently" />
+    </section>
+
+    <div class="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+      <WidgetTop
+        v-for="widget in topWidgets"
+        :key="widget"
+        :what="widget"
+        :title="widgetTitle(widget)"
+        :refresh="refreshOccasionally"
+        class="min-w-0 rounded-xl border border-gray-200 p-4 dark:border-slate-700"
+      />
     </div>
+
+    <details
+      class="rounded-xl border border-gray-200 p-4 dark:border-slate-700"
+    >
+      <summary class="cursor-pointer font-semibold">Raw flow details</summary>
+      <WidgetLastFlow :refresh="refreshOften" class="mt-4 overflow-x-auto" />
+    </details>
   </div>
 </template>
 

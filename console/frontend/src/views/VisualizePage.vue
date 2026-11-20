@@ -10,7 +10,7 @@
       @update:model-value="updateState"
       @cancel="canAbort && abort()"
     />
-    <div class="grow overflow-y-auto">
+    <div class="min-h-0 min-w-0 grow overflow-y-auto">
       <LoadingOverlay :loading="isFetching && !autoQuery">
         <RequestSummary :request="request" />
         <div class="mx-4 my-2">

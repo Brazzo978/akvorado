@@ -3,11 +3,11 @@
 
 <template>
   <div>
-    <div class="h-[300px]">
+    <div class="h-[340px] lg:h-[460px]">
       <v-chart
         :key="selectedTimezone"
         :option="option"
-        :update-options="{ notMerge: true }"
+        :update-options="{ replaceMerge: ['series'] }"
         :theme="isDark ? 'dark' : undefined"
         autoresize
       />
@@ -25,6 +25,8 @@ import { LineChart, type LineSeriesOption } from "echarts/charts";
 import {
   TooltipComponent,
   GridComponent,
+  DataZoomComponent,
+  type DataZoomComponentOption,
   type TooltipComponentOption,
   type GridComponentOption,
 } from "echarts/components";
@@ -43,9 +45,18 @@ const props = withDefaults(
 );
 
 type ECOption = ComposeOption<
-  LineSeriesOption | TooltipComponentOption | GridComponentOption
+  | LineSeriesOption
+  | TooltipComponentOption
+  | GridComponentOption
+  | DataZoomComponentOption
 >;
-use([CanvasRenderer, LineChart, TooltipComponent, GridComponent]);
+use([
+  CanvasRenderer,
+  LineChart,
+  TooltipComponent,
+  GridComponent,
+  DataZoomComponent,
+]);
 
 const formatGbps = (value: number) => formatXps(value * 1_000_000_000);
 
@@ -56,7 +67,12 @@ const { data } = useFetch(url, { refetch: true })
 const option = computed((): ECOption => ({
   darkMode: isDark.value,
   backgroundColor: "transparent",
+  grid: { left: 8, right: 24, top: 24, bottom: 64, outerBoundsMode: "same" },
   xAxis: { type: "time" },
+  dataZoom: [
+    { type: "inside", zoomOnMouseWheel: "ctrl", moveOnMouseWheel: false },
+    { type: "slider", height: 24, bottom: 6 },
+  ],
   yAxis: {
     type: "value",
     min: 0,
@@ -75,11 +91,10 @@ const option = computed((): ECOption => ({
     {
       type: "line",
       symbol: "none",
-      lineStyle: {
-        width: 0,
-      },
+      smooth: 0.2,
+      lineStyle: { width: 2 },
       areaStyle: {
-        opacity: 0.9,
+        opacity: 0.45,
         color: new graphic.LinearGradient(0, 0, 0, 1, [
           {
             offset: 0,

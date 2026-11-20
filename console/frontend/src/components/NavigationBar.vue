@@ -76,7 +76,6 @@ import { useRoute } from "vue-router";
 import { Disclosure, DisclosureButton, DisclosurePanel } from "@headlessui/vue";
 import {
   HomeIcon,
-  BookOpenIcon,
   MenuIcon,
   XIcon,
   PresentationChartLineIcon,
@@ -94,12 +93,6 @@ const navigation = computed(() => [
     icon: PresentationChartLineIcon,
     link: "/visualize",
     current: route.path.startsWith("/visualize"),
-  },
-  {
-    name: "Documentation",
-    icon: BookOpenIcon,
-    link: "/docs",
-    current: route.path.startsWith("/docs"),
   },
 ]);
 </script>
