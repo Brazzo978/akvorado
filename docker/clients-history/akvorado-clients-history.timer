@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Akvorado contributors
+# SPDX-License-Identifier: AGPL-3.0-only
+[Unit]
+Description=Refresh Akvorado client history hourly
+
+[Timer]
+OnCalendar=*-*-* *:07:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

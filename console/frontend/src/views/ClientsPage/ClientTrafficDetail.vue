@@ -36,7 +36,7 @@
       >
         <h3 class="font-semibold">Traffic over time</h3>
         <p class="text-xs text-gray-600 dark:text-slate-400">
-          One-minute average throughput
+          {{ resolutionLabel }} average throughput
         </p>
         <div class="h-80">
           <v-chart
@@ -104,12 +104,15 @@
 import { formatXps } from "@/utils";
 
 export type TrafficVolume = { download: number; upload: number };
+export type HistoryCoverage = { start: string | null; end: string | null };
 type TrafficPoint = TrafficVolume & { time: number };
 type TrafficBreakdown = TrafficVolume & { id: number; name: string };
 export type ClientDetail = {
   total: TrafficVolume;
   peakDownloadBps: number;
   peakUploadBps: number;
+  bucketSeconds?: number;
+  coverage?: HistoryCoverage | null;
   points: TrafficPoint[];
   protocols: TrafficBreakdown[];
   networks: TrafficBreakdown[];
@@ -169,6 +172,11 @@ const props = defineProps<{
 const formatSpeed = (bps: number) =>
   bps === 0 ? "0 bps" : formatXps(bps) + "bps";
 
+const bucketSeconds = computed(() => props.traffic.bucketSeconds ?? 60);
+const resolutionLabel = computed(() =>
+  bucketSeconds.value === 3600 ? "1-hour" : "1-minute",
+);
+
 const stats = computed(() => [
   { label: "Download", value: formatVolume(props.traffic.total.download) },
   { label: "Upload", value: formatVolume(props.traffic.total.upload) },
@@ -179,11 +187,11 @@ const stats = computed(() => [
     ),
   },
   {
-    label: "Peak download (1 min)",
+    label: `Peak download (${resolutionLabel.value} avg)`,
     value: formatSpeed(props.traffic.peakDownloadBps),
   },
   {
-    label: "Peak upload (1 min)",
+    label: `Peak upload (${resolutionLabel.value} avg)`,
     value: formatSpeed(props.traffic.peakUploadBps),
   },
 ]);
@@ -200,14 +208,22 @@ const breakdowns = computed(() => [
   },
 ]);
 const chart = computed((): ChartOption => {
-  const start = Date.parse(props.start);
-  const end = Date.parse(props.end);
+  const coverage = props.traffic.coverage;
+  const start = Math.max(
+    Date.parse(props.start),
+    coverage?.start ? Date.parse(coverage.start) : -Infinity,
+  );
+  const end = Math.min(
+    Date.parse(props.end),
+    coverage?.end ? Date.parse(coverage.end) : Infinity,
+  );
+  const step = bucketSeconds.value * 1000;
   const points = new Map(
     props.traffic.points.map((point) => [point.time * 1000, point]),
   );
   const times = Array.from(
-    { length: (end - start) / 60_000 },
-    (_, idx) => start + idx * 60_000,
+    { length: Math.max(0, (end - start) / step) },
+    (_, idx) => start + idx * step,
   );
   return {
     backgroundColor: "transparent",
@@ -232,7 +248,7 @@ const chart = computed((): ChartOption => {
       areaStyle: { opacity: 0.12 },
       data: times.map((time) => [
         time,
-        ((points.get(time)?.[key] ?? 0) * 8) / 60,
+        ((points.get(time)?.[key] ?? 0) * 8) / bucketSeconds.value,
       ]),
     })),
   };

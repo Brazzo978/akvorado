@@ -77,6 +77,11 @@
             <option :value="1">Last hour</option>
             <option :value="6">Last 6 hours</option>
             <option :value="24">Last 24 hours</option>
+            <template v-if="config?.clientHistory">
+              <option :value="168">Last 7 days</option>
+              <option :value="720">Last 30 days</option>
+              <option :value="1440">Last 60 days</option>
+            </template>
           </select>
         </label>
         <label class="grid gap-1 text-sm font-medium">
@@ -132,6 +137,18 @@
             sampled IPFIX
           </p>
         </div>
+        <p
+          v-if="active && coverage"
+          class="px-4 pb-3 text-xs text-gray-600 dark:text-slate-400"
+        >
+          <template v-if="coverage.start && coverage.end">
+            Hourly history available
+            {{ formatPeriod(coverage.start, coverage.end) }}
+          </template>
+          <template v-else
+            >Waiting for the first hour of client history.</template
+          >
+        </p>
         <div class="overflow-x-auto" :aria-busy="loading">
           <table class="w-full min-w-[34rem] text-left text-sm tabular-nums">
             <thead
@@ -269,6 +286,7 @@ import InfoBox from "@/components/InfoBox.vue";
 import { ServerConfigKey } from "@/components/ServerConfigProvider.vue";
 import ClientTrafficDetail, {
   type ClientDetail,
+  type HistoryCoverage,
   type TrafficVolume,
   formatPeriod,
   formatVolume,
@@ -297,6 +315,7 @@ const sort = ref<Ranking>("total");
 const search = ref("");
 const active = ref<TrafficRequest>();
 const rows = ref<ClientRow[]>([]);
+const coverage = ref<HistoryCoverage | null>(null);
 const largestDirection = computed(() =>
   Math.max(
     1,
@@ -340,12 +359,13 @@ async function loadPage(next: number) {
   loading.value = true;
   listError.value = "";
   try {
-    const result = await post<{ rows: ClientRow[]; hasMore: boolean }>(
-      "traffic",
-      { ...active.value, offset: next },
-      request.signal,
-    );
+    const result = await post<{
+      rows: ClientRow[];
+      hasMore: boolean;
+      coverage?: HistoryCoverage | null;
+    }>("traffic", { ...active.value, offset: next }, request.signal);
     rows.value = result.rows;
+    coverage.value = result.coverage ?? null;
     hasMore.value = result.hasMore;
     offset.value = next;
     return true;
@@ -358,7 +378,8 @@ async function loadPage(next: number) {
 }
 
 function refresh() {
-  const end = Math.floor(Date.now() / 60_000) * 60_000;
+  const step = hours.value > 24 ? 3_600_000 : 60_000;
+  const end = Math.floor(Date.now() / step) * step;
   active.value = {
     start: new Date(end - hours.value * 3_600_000).toISOString(),
     end: new Date(end).toISOString(),
@@ -368,6 +389,7 @@ function refresh() {
     offset: 0,
   };
   rows.value = [];
+  coverage.value = null;
   offset.value = 0;
   hasMore.value = false;
   return loadPage(0);

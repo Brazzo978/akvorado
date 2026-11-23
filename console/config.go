@@ -40,6 +40,8 @@ type Configuration struct {
 	Branding bool
 	// ClientSubnets lists the default CIDRs for the Clients view, separated by commas.
 	ClientSubnets string
+	// ClientHistory enables the hourly client archive for longer ranges.
+	ClientHistory bool
 	// CacheTTL tells how long to keep the most costly requests in cache.
 	CacheTTL time.Duration `validate:"min=5s"`
 }
@@ -156,6 +158,9 @@ func (c *Component) configHandlerFunc(w http.ResponseWriter, _ *http.Request) {
 	}
 	if c.config.ClientSubnets != "" {
 		payload["clientSubnets"] = strings.FieldsFunc(c.config.ClientSubnets, func(r rune) bool { return r == ',' || r == ' ' })
+	}
+	if c.config.ClientHistory {
+		payload["clientHistory"] = true
 	}
 	httpserver.WriteJSON(w, http.StatusOK, payload)
 }

@@ -13,7 +13,11 @@ import (
 	"akvorado/common/httpserver"
 )
 
-const clientPageSize = 25
+const (
+	clientPageSize     = 25
+	clientHistoryTable = "flows_clients_hourly"
+	clientHistoryLimit = 60 * 24 * time.Hour
+)
 
 type clientTrafficInput struct {
 	Start    time.Time      `json:"start" validate:"required"`
@@ -61,16 +65,53 @@ WHERE TimeReceived >= toDateTime(?, 'UTC') AND TimeReceived < toDateTime(?, 'UTC
     OR (InIfBoundary = 'external' AND OutIfBoundary = 'internal'))
 `
 
+const clientHistorySource = `
+WITH ClientIP AS client_ip
+SELECT %s, sum(Download) AS download, sum(Upload) AS upload
+FROM flows_clients_hourly
+WHERE Hour >= toDateTime(?, 'UTC') AND Hour < toDateTime(?, 'UTC')
+`
+
+func (input clientTrafficInput) usesHistory() bool {
+	return input.End.Sub(input.Start) > 24*time.Hour
+}
+
+func (input clientTrafficInput) source(selectExpr string) string {
+	source := clientTrafficSource
+	if input.usesHistory() {
+		source = clientHistorySource
+	}
+	return strings.Replace(source, "%s", selectExpr, 1)
+}
+
+type clientHistoryCoverage struct {
+	Start *time.Time `ch:"oldest" json:"start"`
+	End   *time.Time `ch:"latest" json:"end"`
+}
+
+func (c *Component) clientCoverage(w http.ResponseWriter, req *http.Request, input clientTrafficInput) (*clientHistoryCoverage, bool) {
+	if !input.usesHistory() {
+		return nil, true
+	}
+	var coverage []clientHistoryCoverage
+	const query = "SELECT minOrNull(Hour) AS oldest, addHours(maxOrNull(Hour), 1) AS latest FROM flows_clients_hourly"
+	if !c.queryClientTraffic(w, req, input, &coverage, query) {
+		return nil, false
+	}
+	return &coverage[0], true
+}
+
 func (input clientTrafficInput) scope() (string, []any) {
 	args := []any{input.Start.UTC().Format("2006-01-02 15:04:05"), input.End.UTC().Format("2006-01-02 15:04:05")}
 	scope := ""
 	if len(input.Prefixes) > 0 {
 		placeholders := make([]string, 0, len(input.Prefixes))
 		for _, prefix := range input.Prefixes {
-			placeholders = append(placeholders, "?")
-			args = append(args, helpers.PrefixTo6(prefix.Masked()).String())
+			placeholders = append(placeholders, "IPv6CIDRToRange(toIPv6(?), ?)")
+			prefix = helpers.PrefixTo6(prefix.Masked())
+			args = append(args, prefix.Addr().String(), prefix.Bits())
 		}
-		scope += "  AND arrayExists(cidr -> isIPAddressInRange(toString(client_ip), cidr), [" +
+		scope += "  AND arrayExists(bounds -> client_ip BETWEEN bounds.1 AND bounds.2, [" +
 			strings.Join(placeholders, ", ") + "])\n"
 	}
 	if input.IP.IsValid() {
@@ -80,16 +121,23 @@ func (input clientTrafficInput) scope() (string, []any) {
 	return scope, args
 }
 
-func readClientTrafficInput(w http.ResponseWriter, req *http.Request) (clientTrafficInput, bool) {
+func (c *Component) readClientTrafficInput(w http.ResponseWriter, req *http.Request) (clientTrafficInput, bool) {
 	var input clientTrafficInput
 	if err := httpserver.BindJSON(req, &input); err != nil {
 		httpserver.WriteJSON(w, http.StatusBadRequest, helpers.M{"message": "Parametri della richiesta non validi."})
 		return input, false
 	}
-	if input.End.Sub(input.Start) > 24*time.Hour ||
-		!input.Start.Equal(input.Start.Truncate(time.Minute)) ||
-		!input.End.Equal(input.End.Truncate(time.Minute)) {
-		httpserver.WriteJSON(w, http.StatusBadRequest, helpers.M{"message": "Scegli un intervallo fino a 24 ore, con precisione al minuto."})
+	bucket := time.Minute
+	if input.usesHistory() {
+		if !c.config.ClientHistory || input.End.Sub(input.Start) > clientHistoryLimit {
+			httpserver.WriteJSON(w, http.StatusBadRequest, helpers.M{"message": "The selected range exceeds the available history window."})
+			return input, false
+		}
+		bucket = time.Hour
+	}
+	if !input.Start.Equal(input.Start.Truncate(bucket)) ||
+		!input.End.Equal(input.End.Truncate(bucket)) {
+		httpserver.WriteJSON(w, http.StatusBadRequest, helpers.M{"message": "Align the time range to full measurement intervals."})
 		return input, false
 	}
 	for _, prefix := range input.Prefixes {
@@ -101,8 +149,12 @@ func readClientTrafficInput(w http.ResponseWriter, req *http.Request) (clientTra
 	return input, true
 }
 
-func (c *Component) queryClientTraffic(w http.ResponseWriter, req *http.Request, out any, sql string, args ...any) bool {
-	c.metrics.clickhouseQueries.WithLabelValues("flows").Inc()
+func (c *Component) queryClientTraffic(w http.ResponseWriter, req *http.Request, input clientTrafficInput, out any, sql string, args ...any) bool {
+	table := "flows"
+	if input.usesHistory() {
+		table = clientHistoryTable
+	}
+	c.metrics.clickhouseQueries.WithLabelValues(table).Inc()
 	if err := c.d.ClickHouseDB.Select(c.t.Context(req.Context()), out, sql, args...); err != nil {
 		c.r.Err(err).Msg("unable to query client traffic")
 		httpserver.WriteJSON(w, http.StatusInternalServerError, helpers.M{"message": "Impossibile caricare il traffico dei clienti."})
@@ -112,7 +164,7 @@ func (c *Component) queryClientTraffic(w http.ResponseWriter, req *http.Request,
 }
 
 func (c *Component) clientTrafficHandlerFunc(w http.ResponseWriter, req *http.Request) {
-	input, ok := readClientTrafficInput(w, req)
+	input, ok := c.readClientTrafficInput(w, req)
 	if !ok {
 		return
 	}
@@ -124,21 +176,25 @@ func (c *Component) clientTrafficHandlerFunc(w http.ResponseWriter, req *http.Re
 	case "upload":
 		order = "upload"
 	}
-	query := strings.Replace(clientTrafficSource, "%s", "replaceRegexpOne(toString(client_ip), '^::ffff:', '') AS ip", 1) +
+	query := input.source("replaceRegexpOne(toString(client_ip), '^::ffff:', '') AS ip") +
 		scope + "GROUP BY client_ip ORDER BY " + order + " DESC, client_ip LIMIT ? OFFSET ?"
 	rows := []clientTrafficRow{}
-	if !c.queryClientTraffic(w, req, &rows, query, append(args, clientPageSize+1, input.Offset)...) {
+	if !c.queryClientTraffic(w, req, input, &rows, query, append(args, clientPageSize+1, input.Offset)...) {
 		return
 	}
 	hasMore := len(rows) > clientPageSize
 	if hasMore {
 		rows = rows[:clientPageSize]
 	}
-	httpserver.WriteJSON(w, http.StatusOK, helpers.M{"rows": rows, "hasMore": hasMore})
+	coverage, ok := c.clientCoverage(w, req, input)
+	if !ok {
+		return
+	}
+	httpserver.WriteJSON(w, http.StatusOK, helpers.M{"rows": rows, "hasMore": hasMore, "coverage": coverage})
 }
 
 func (c *Component) clientDetailHandlerFunc(w http.ResponseWriter, req *http.Request) {
-	input, ok := readClientTrafficInput(w, req)
+	input, ok := c.readClientTrafficInput(w, req)
 	if !ok {
 		return
 	}
@@ -148,9 +204,16 @@ func (c *Component) clientDetailHandlerFunc(w http.ResponseWriter, req *http.Req
 	}
 	scope, args := input.scope()
 	points := []clientTrafficPoint{}
-	query := strings.Replace(clientTrafficSource, "%s", "toUnixTimestamp(toStartOfMinute(TimeReceived)) AS period", 1) +
-		scope + "GROUP BY period ORDER BY period"
-	if !c.queryClientTraffic(w, req, &points, query, args...) {
+	bucketSeconds := 60
+	timeColumn := "toStartOfMinute(TimeReceived)"
+	remoteAS := "if(outbound, DstAS, SrcAS)"
+	if input.usesHistory() {
+		bucketSeconds = 3600
+		timeColumn = "Hour"
+		remoteAS = "RemoteAS"
+	}
+	query := input.source("toUnixTimestamp("+timeColumn+") AS period") + scope + "GROUP BY period ORDER BY period"
+	if !c.queryClientTraffic(w, req, input, &points, query, args...) {
 		return
 	}
 
@@ -161,14 +224,14 @@ func (c *Component) clientDetailHandlerFunc(w http.ResponseWriter, req *http.Req
 		out            *[]clientTrafficBreakdown
 	}{
 		{"Proto", "protocols", &protocols},
-		{"if(outbound, DstAS, SrcAS)", "asns", &networks},
+		{remoteAS, "asns", &networks},
 	} {
-		query := strings.Replace(clientTrafficSource, "%s", breakdown.id+" AS id", 1) +
+		query := input.source(breakdown.id+" AS id") +
 			scope + "GROUP BY id ORDER BY (download + upload) DESC, id LIMIT 20"
 		query = "SELECT id, dictGetOrDefault(?, 'name', id, '') AS name, download, upload FROM (" + query + ") " +
 			"ORDER BY (download + upload) DESC, id"
 		queryArgs := append([]any{c.d.ClickHouseDB.DatabaseName() + "." + breakdown.dictionary}, args...)
-		if !c.queryClientTraffic(w, req, breakdown.out, query, queryArgs...) {
+		if !c.queryClientTraffic(w, req, input, breakdown.out, query, queryArgs...) {
 			return
 		}
 	}
@@ -181,8 +244,14 @@ func (c *Component) clientDetailHandlerFunc(w http.ResponseWriter, req *http.Req
 		peak.Download = max(peak.Download, point.Download)
 		peak.Upload = max(peak.Upload, point.Upload)
 	}
+	coverage, ok := c.clientCoverage(w, req, input)
+	if !ok {
+		return
+	}
 	httpserver.WriteJSON(w, http.StatusOK, helpers.M{
 		"points": points, "protocols": protocols, "networks": networks,
-		"total": total, "peakDownloadBps": float64(peak.Download) * 8 / 60, "peakUploadBps": float64(peak.Upload) * 8 / 60,
+		"coverage": coverage, "bucketSeconds": bucketSeconds,
+		"total": total, "peakDownloadBps": float64(peak.Download) * 8 / float64(bucketSeconds),
+		"peakUploadBps": float64(peak.Upload) * 8 / float64(bucketSeconds),
 	})
 }

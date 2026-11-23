@@ -39,6 +39,7 @@ type ServerConfig = {
   homepageTopWidgets: string[];
   branding: boolean;
   clientSubnets?: string[] | null;
+  clientHistory?: boolean;
 };
 
 export const ServerConfigKey: InjectionKey<Readonly<Ref<ServerConfig | null>>> =

@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2026 Akvorado contributors
+# SPDX-License-Identifier: AGPL-3.0-only
+[Unit]
+Description=Refresh Akvorado hourly client traffic
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/akvorado-clients-history.env
+ExecStart=/usr/bin/flock -x /run/akvorado-clients-history/refresh.lock /usr/bin/python3 /opt/akvorado/clients-history/update.py --container ${CLIENTS_HISTORY_CONTAINER} --database ${CLIENTS_HISTORY_DATABASE}
+TimeoutStartSec=30min
+ProtectSystem=strict
+RuntimeDirectory=akvorado-clients-history
+StateDirectory=akvorado-clients-history
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+RestrictAddressFamilies=AF_UNIX
