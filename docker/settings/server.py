@@ -6,6 +6,7 @@
 import argparse
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler
+import ipaddress
 import json
 import logging
 import os
@@ -19,6 +20,7 @@ import threading
 from urllib.parse import unquote, urlsplit
 
 ENDPOINT = "/api/v0/console/settings"
+CLIENT_NAMES = ENDPOINT + "/client-names"
 AUTH_HEADER = "X-Akvorado-Settings-User"
 USER = r"[A-Za-z0-9][A-Za-z0-9_.-]{0,31}"
 BCRYPT = r"\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}"
@@ -54,14 +56,15 @@ def replace_in_place(path, content):
 
 
 def write_config(path, content):
-    metadata = path.stat()
+    metadata = path.stat() if path.exists() else None
     with tempfile.NamedTemporaryFile(
         mode="w", encoding="utf-8", newline="\n", dir=path.parent, delete=False,
     ) as file:
         temporary = Path(file.name)
         try:
-            os.fchown(file.fileno(), metadata.st_uid, metadata.st_gid)
-            os.fchmod(file.fileno(), stat.S_IMODE(metadata.st_mode))
+            if metadata is not None:
+                os.fchown(file.fileno(), metadata.st_uid, metadata.st_gid)
+                os.fchmod(file.fileno(), stat.S_IMODE(metadata.st_mode))
             file.write(content)
             file.flush()
             os.fsync(file.fileno())
@@ -242,6 +245,40 @@ class Settings:
         logging.info("Updated retention for %s from %s to %s days", table, current, days)
         return {"message": "Retention updated."}
 
+    @property
+    def names_file(self):
+        return Path(os.environ.get("STATE_DIRECTORY", "/var/lib/akvorado-settings")) / "client-names.json"
+
+    def client_names(self):
+        if not self.names_file.exists():
+            return {}
+        return json.loads(self.names_file.read_text(encoding="utf-8"))
+
+    def rename_client(self, body):
+        ip = body.get("ip")
+        name = body.get("name")
+        try:
+            if not isinstance(ip, str) or "%" in ip:
+                raise ValueError
+            address = ipaddress.ip_address(ip)
+        except ValueError:
+            raise RequestError(400, "Enter a valid client IP address.") from None
+        if isinstance(address, ipaddress.IPv6Address):
+            address = address.ipv4_mapped or address
+        ip = str(address)
+        if not isinstance(name, str):
+            raise RequestError(400, "Enter a client name of up to 64 characters.")
+        name = name.strip()
+        if len(name) > 64 or (name and not name.isprintable()):
+            raise RequestError(400, "Use up to 64 printable characters for the client name.")
+        names = self.client_names()
+        if name:
+            names[ip] = name
+        else:
+            names.pop(ip, None)
+        write_config(self.names_file, json.dumps(names, ensure_ascii=False, sort_keys=True) + "\n")
+        return {"ip": ip, "name": name}
+
     def get(self):
         _, accounts = named_auth_block(self.args.caddyfile.read_text(encoding="utf-8"))
         return {
@@ -289,14 +326,21 @@ class Handler(BaseHTTPRequestHandler):
     def dispatch(self):
         settings = self.server.settings
         try:
-            if self.headers.get_all(AUTH_HEADER) != [settings.args.admin]:
+            identity = self.headers.get_all(AUTH_HEADER) or []
+            admin = identity == [settings.args.admin]
+            path = urlsplit(self.path).path
+            read_names = self.command == "GET" and path == CLIENT_NAMES
+            if not admin and (not read_names or len(identity) != 1 or not re.fullmatch(USER, identity[0])):
                 raise RequestError(403, "Settings are only available to the administrator.")
             if self.command != "GET" and self.headers.get("Origin") not in (None, settings.args.origin):
                 raise RequestError(403, "Settings changes must come from this site.")
-            path = urlsplit(self.path).path
             body = self.body() if self.command in ("POST", "PUT") else {}
             with settings.lock:
-                if self.command == "GET" and path == ENDPOINT:
+                if read_names:
+                    result = {"names": settings.client_names(), "canEdit": admin}
+                elif self.command == "PUT" and path == CLIENT_NAMES:
+                    result = settings.rename_client(body)
+                elif self.command == "GET" and path == ENDPOINT:
                     result = settings.get()
                 elif self.command == "POST" and path == ENDPOINT + "/users":
                     result = settings.change_user(self.command, body.get("username"), body)

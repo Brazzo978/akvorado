@@ -13,9 +13,20 @@
       <InputButton v-if="!selected" type="alternative" @click="openWizard()"
         >Manage subnets</InputButton
       >
-      <InputButton v-else type="alternative" @click="closeDetail"
-        >Back to rankings</InputButton
-      >
+      <div v-else class="flex flex-wrap gap-2">
+        <InputButton
+          v-if="canEditClientNames"
+          type="alternative"
+          @click="openNameEditor"
+        >
+          {{
+            clientNames[selected] ? "Edit friendly name" : "Add friendly name"
+          }}
+        </InputButton>
+        <InputButton type="alternative" @click="closeDetail"
+          >Back to rankings</InputButton
+        >
+      </div>
     </header>
 
     <dialog
@@ -57,6 +68,52 @@
             :disabled="saving"
             class="px-4"
             >Save subnets</InputButton
+          >
+        </div>
+      </form>
+    </dialog>
+
+    <dialog
+      ref="nameDialog"
+      aria-labelledby="client-name-title"
+      class="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-gray-200 bg-white p-6 text-gray-900 shadow-xl backdrop:bg-slate-950/55 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100"
+    >
+      <form class="space-y-4" @submit.prevent="saveClientName">
+        <h2 id="client-name-title" class="text-lg font-semibold">
+          Friendly name for {{ selected }}
+        </h2>
+        <label class="block text-sm font-medium">
+          Friendly name
+          <input
+            v-model="nameDraft"
+            maxlength="64"
+            autofocus
+            :disabled="nameSaving"
+            class="mt-1 w-full rounded-md border border-gray-300 bg-transparent p-2 dark:border-slate-600"
+          />
+        </label>
+        <p class="text-xs text-gray-600 dark:text-slate-400">
+          Leave blank to remove the name.
+        </p>
+        <p
+          v-if="nameError"
+          role="alert"
+          class="text-sm text-red-700 dark:text-red-400"
+        >
+          {{ nameError }}
+        </p>
+        <div class="flex justify-end gap-2">
+          <InputButton
+            type="alternative"
+            :disabled="nameSaving"
+            @click="nameDialog?.close()"
+            >Cancel</InputButton
+          >
+          <InputButton
+            attr-type="submit"
+            :disabled="nameSaving"
+            :loading="nameSaving"
+            >Save name</InputButton
           >
         </div>
       </form>
@@ -189,6 +246,12 @@
                   >
                     {{ row.ip }}
                   </button>
+                  <span
+                    v-if="clientNames[row.ip]"
+                    :title="clientNames[row.ip]"
+                    class="ml-2 inline-block max-w-40 truncate align-bottom text-gray-700 dark:text-slate-200"
+                    >{{ clientNames[row.ip] }}</span
+                  >
                 </th>
                 <td class="px-4 py-2">
                   <div
@@ -271,6 +334,7 @@
       <ClientTrafficDetail
         v-else-if="active"
         :ip="selected"
+        :friendly-name="clientNames[selected]"
         :traffic="detail"
         :start="active.start"
         :end="active.end"
@@ -280,7 +344,15 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, nextTick, onUnmounted, ref, watch } from "vue";
+import {
+  computed,
+  inject,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from "vue";
 import InputButton from "@/components/InputButton.vue";
 import InfoBox from "@/components/InfoBox.vue";
 import { ServerConfigKey } from "@/components/ServerConfigProvider.vue";
@@ -305,6 +377,15 @@ type TrafficRequest = {
 
 const config = inject(ServerConfigKey)!;
 const storageKey = "akvorado-client-subnets";
+const namesEndpoint = "api/v0/console/settings/client-names";
+const clientNames = ref<Record<string, string>>({});
+const canEditClientNames = ref(false);
+const nameDialog = ref<HTMLDialogElement>();
+const nameDraft = ref("");
+const nameError = ref("");
+const nameSaving = ref(false);
+const namesRequest = new AbortController();
+
 const wizard = ref<HTMLDialogElement>();
 const draft = ref("");
 const saving = ref(false);
@@ -422,6 +503,57 @@ async function saveSubnets() {
   wizard.value?.close();
 }
 
+async function loadClientNames() {
+  try {
+    const result = await fetch(namesEndpoint, { signal: namesRequest.signal });
+    if (result.ok) {
+      const data = await result.json();
+      clientNames.value = data.names;
+      canEditClientNames.value = data.canEdit;
+    }
+  } catch {
+    // Client traffic is available independently of the optional names service.
+  }
+}
+
+function openNameEditor() {
+  if (nameSaving.value) return;
+  nameDraft.value = clientNames.value[selected.value] ?? "";
+  nameError.value = "";
+  nameDialog.value?.showModal();
+}
+
+async function saveClientName() {
+  if (!selected.value || nameSaving.value) return;
+  nameSaving.value = true;
+  nameError.value = "";
+  try {
+    const result = await fetch(namesEndpoint, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ip: selected.value,
+        name: nameDraft.value.trim(),
+      }),
+    });
+    if (!result.ok) {
+      nameError.value = "Unable to save the name.";
+      return;
+    }
+    const { ip, name } = await result.json();
+    if (name) {
+      clientNames.value[ip] = name;
+    } else {
+      delete clientNames.value[ip];
+    }
+    nameDialog.value?.close();
+  } catch {
+    nameError.value = "Unable to save the name.";
+  } finally {
+    nameSaving.value = false;
+  }
+}
+
 async function openDetail(ip: string) {
   if (!active.value) return;
   detailRequest?.abort();
@@ -461,7 +593,9 @@ watch(
   { immediate: true },
 );
 
+onMounted(() => void loadClientNames());
 onUnmounted(() => {
+  namesRequest.abort();
   listRequest?.abort();
   detailRequest?.abort();
 });

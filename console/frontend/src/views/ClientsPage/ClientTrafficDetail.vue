@@ -4,7 +4,14 @@
 <template>
   <div class="space-y-4">
     <header>
-      <h2 class="font-mono text-xl font-semibold">{{ ip }}</h2>
+      <h2 class="flex flex-wrap items-baseline gap-x-3 text-xl font-semibold">
+        <span class="font-mono">{{ ip }}</span>
+        <span
+          v-if="friendlyName"
+          class="break-all text-gray-700 dark:text-slate-200"
+          >{{ friendlyName }}</span
+        >
+      </h2>
       <p class="mt-1 text-sm text-gray-600 dark:text-slate-400">
         {{ formatPeriod(start, end) }} · Estimated from sampled IPFIX
       </p>
@@ -165,6 +172,7 @@ type ChartOption = ComposeOption<
 const { isDark } = inject(ThemeKey)!;
 const props = defineProps<{
   ip: string;
+  friendlyName?: string;
   start: string;
   end: string;
   traffic: ClientDetail;

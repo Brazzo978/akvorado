@@ -17,6 +17,8 @@ ProtectHome=yes
 PrivateTmp=yes
 NoNewPrivileges=yes
 RestrictAddressFamilies=AF_UNIX
+StateDirectory=akvorado-settings
+StateDirectoryMode=0700
 UMask=0077
 
 [Install]
